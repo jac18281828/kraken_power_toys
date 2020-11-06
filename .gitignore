@@ -1,0 +1,4 @@
+*.pyc
+*.json
+*.gpg
+kwss/
