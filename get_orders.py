@@ -10,7 +10,7 @@ if __name__ == '__main__':
                 apikey = json.load(keyfile)
                 orders = KrakenOrders(apikey)
 
-                order_result = orders.query_closed()
+                order_result = orders.query_closed('')
                 print(json.dumps(order_result, indent=4))
 
                 order_result = orders.query_open()

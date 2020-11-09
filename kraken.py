@@ -90,9 +90,9 @@ class KrakenWss:
         event = {'event': 'subscribe', 'reqid': self.requestId}
         self.requestId = self.requestId + 1
 
-        token_str = self.token['token']
+        token_value = self.token['token']
         
-        subscription = {'token': self.token, 'name':name}
+        subscription = {'token': token_value, 'name':name}
         event['subscription'] = subscription
         await self.send_json(websocket, event)
 
@@ -103,7 +103,7 @@ class KrakenWss:
     async def heartbeat(self, websocket):
         now = time.time()
         timedelta = now - self.update_time
-        if timedelta > 1:
+        if timedelta > 10:
             print('Idle: sending ping')
             await self.ping(websocket)
         else:
