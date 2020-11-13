@@ -2,7 +2,6 @@ from kraken_orders import KrakenOrders
 
 import json
 
-
 try:
     with open('apikey.json') as keyfile:
         apikey = json.load(keyfile)

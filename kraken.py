@@ -37,6 +37,7 @@ class KrakenWss:
         self.requestId = self.requestId + 1
         self.update_time = time.time()
         await self.send_json(websocket, event)
+        await asyncio.sleep(1)        
 
     async def on_open_orders(self, websocket, order_list):
         for order in order_list:

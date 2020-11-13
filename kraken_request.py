@@ -25,9 +25,7 @@ class KrakenRequest:
 
         kraken_request.update(params)
             
-        alist = [str(k)+'='+urllib.parse.quote(str(v)) for (k,v) in kraken_request.items()]
-            
-        post_body = '&'.join(alist)
+        post_body = urllib.parse.urlencode(kraken_request)
 
         api_post = post_body.encode('utf-8')
 
