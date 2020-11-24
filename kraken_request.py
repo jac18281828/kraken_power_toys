@@ -1,4 +1,12 @@
-import time, base64, hashlib, hmac, urllib.request, urllib.parse, json, ssl, certifi
+import time
+import base64
+import hashlib
+import hmac
+import urllib.request
+import urllib.parse
+import json
+import ssl
+import certifi
 
 class KrakenRequest:
 
@@ -41,16 +49,25 @@ class KrakenRequest:
         api_request = urllib.request.Request(self.API_URL + endpoint, data=api_post)
         api_request.add_header('API-Key', apikey)
         api_request.add_header('API-Sign', api_signature)
-    
-        request_result = urllib.request.urlopen(api_request, context=ssl.create_default_context(cafile=certifi.where())).read()
-        response_payload=json.loads(request_result)
 
-        if 'error' in response_payload and len(response_payload['error']):
-            print(response_payload)
-            raise Exception('Request failed' + ':'.join(response_payload['error']))
+        with urllib.request.urlopen(api_request, context=ssl.create_default_context(cafile=certifi.where())) as api_call:
+            request_result = api_call.read()
+            status_code = api_call.getcode()
+        
+            response_payload=json.loads(request_result)
 
-        result = response_payload['result']
-        return result
+            if status_code != 200:
+                print("Status code: %d" % status_code)
+                print("Response: %s" % response_payload)
+
+                if 'error' in response_payload and len(response_payload['error']):
+                    print(response_payload)
+                    raise RuntimeException('Request failed' + ':'.join(response_payload['error']))
+
+            result = response_payload['result']
+            return result
+
+        raise RuntimeException('Request failed')
 
 
 

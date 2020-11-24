@@ -2,13 +2,17 @@ from kraken_orders import KrakenOrders
 
 import json
 
-try:
-    with open('apikey.json') as keyfile:
-        apikey = json.load(keyfile)
-        order = KrakenOrders(apikey)
+if __name__ == '__main__':
 
-        orderinfo = order.query_order('abc')
+    try:
+        with open('apikey.json') as keyfile:
+            apikey = json.load(keyfile)
+            order = KrakenOrders(apikey)
 
-        print("OrderInfo = %s" % json.dumps(orderinfo, indent=4))
-except Exception as e:
-    print("Failed. "+str(e))
+            orderinfo = order.query_order('abc')
+
+            print("OrderInfo = %s" % json.dumps(orderinfo, indent=4))
+            sys.exit(0)
+    except Exception as e:
+        print("Failed. "+str(e))
+        sys.exit(1)

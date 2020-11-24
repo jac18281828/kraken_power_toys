@@ -134,5 +134,5 @@ if __name__ == "__main__":
         finally:
             asioloop.close()
 
-        sys.exit(1)
+        sys.exit(0)
         

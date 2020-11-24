@@ -16,9 +16,10 @@ if __name__ == '__main__':
                 order_result = orders.query_closed(txid)
                 print(json.dumps(order_result, indent=4))
 
+                sys.exit(0)
         except Exception as e:
-            print("Failed. "+str(e))
+            print("Failed. "+repr(e))
     else:
-        print ('apikeyfile and txid are required')
+        print ('apikey file and txid are required')
         sys.exit(1)
             

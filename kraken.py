@@ -151,7 +151,9 @@ if __name__ == '__main__':
         finally:
             asioloop.close()
 
+        sys.exit(0)
+
     else:
-        print ('apikeyfile is required.')
+        print ('apikey file is required.')
         sys.exit(1)
         
