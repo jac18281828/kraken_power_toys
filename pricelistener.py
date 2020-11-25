@@ -12,7 +12,7 @@ class PriceListener:
     MAXRANGE = 250
 
     # number of standard deviations required 
-    EDGE = 1.97
+    EDGE = 1.0
     UP   = '📈'
     DOWN = '📉'
     
@@ -23,12 +23,16 @@ class PriceListener:
         self.held_price = 0.0
         self.price_log = open('price_stat.log', 'w')
 
+
+    def get_theo(self):
+        return self.theo
+
     def on_price_update(self, bid, offer):
-        theo = self.calc_theo(bid, offer)
+        self.theo = self.calc_theo(bid, offer)
 
-        print("Theo = %0.2f" % theo)
+        print("Theo = %0.2f" % self.theo)
 
-        self.on_theo(theo)
+        self.on_theo(self.theo)
 
     def on_theo(self, theo):
         self.theo_buffer.append(theo)
@@ -53,8 +57,8 @@ class PriceListener:
                     self.price_log.write('SELL, %f, %f, %f\n' % (time.time(), theo, delta))
                     self.held_price = theo
                 else:
-                    print("looking for price >= %f" % (self.held_price+(sdev_theo*self.EDGE)))
-                    print("sell delta = %f" % delta)
+                    print('require price >= %0.2f' % (theo+(sdev_theo*self.EDGE)))
+                    print('sell delta = %f' % delta)
             else:
                 if theo < self.held_price or theo < mean_theo:
                     delta = (mean_theo - theo)/sdev_theo
@@ -63,8 +67,8 @@ class PriceListener:
                         self.price_log.write('BUY, %f, %f, %f\n' % (time.time(), theo, delta))
                         self.held_price = theo
                     else:
-                        print("looking for price >= %f" % (theo-(sdev_theo*self.EDGE)))
-                        print("buy delta = %f" % delta)
+                        print('require price >= %0.2f' % (theo-(sdev_theo*self.EDGE)))
+                        print('buy delta = %f' % delta)
                         
             self.price_log.flush()
         
