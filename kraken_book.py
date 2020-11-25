@@ -7,15 +7,17 @@ import traceback
 import ssl
 import certifi
 import math
+import zlib
 from kraken_token import KrakenToken
 from pricelistener import PriceListener
 
-class KrakenWss:
+class KrakenBookWss:
 
     WS_URL = 'wss://ws.kraken.com'
     #WS_URL = 'ws://localhost:8777'
 
     PRODUCT_ID='XBT/USD'
+    DEPTH=10
 
     is_running = True
 
@@ -38,11 +40,10 @@ class KrakenWss:
         await self.send_json(websocket, event)
         await asyncio.sleep(1)        
 
-
     async def on_subscription(self, websocket, event):
         print(event)
 
-    async def on_entry_update(self, entry, message):
+    def on_entry_update(self, entry, message):
         for level in message:
             price = float(level[0])
             qty   = float(level[1])
@@ -51,55 +52,124 @@ class KrakenWss:
                 if level[0] in entry:
                     del entry[level[0]]
             else:
-                entry[level[0]] = level
+                entry[level[0]] = level[:3]
 
-    async def on_book_update(self, payload):
+            self.prune_levels()
+                
+
+    def format_entry(self, entry):
+        return entry.replace('.', '').lstrip('0')
+
+
+    def checksum_block(self):
+        SUM_DEPTH = 10
+
+        best_asks = sorted(self.asks.items(), reverse=False, key=lambda level: float(level[0]))[:SUM_DEPTH]
+
+        ask_entry = [ self.format_entry(str(level[0])) + self.format_entry(str(level[1])) for price,level in best_asks ]
+
+        asks = ''.join(ask_entry)
+
+        best_bids = sorted(self.bids.items(), reverse=True, key=lambda level: float(level[0]))[:SUM_DEPTH]
+
+        bid_entry = [ self.format_entry(str(level[0])) + self.format_entry(str(level[1])) for price,level in best_bids ]
+
+        bids = ''.join(bid_entry)
+
+        return asks + bids
+        
+
+    def book_checksum(self):
+
+        crc_block = self.checksum_block()
+
+        kraken_crc32 = zlib.crc32(crc_block.encode('utf-8'))
+
+        return kraken_crc32
+
+
+    def on_book_update(self, payload):
+
+        crc_32 = 0
+        
         for event, message in payload.items():
+            if 'as' == event:
+                self.asks = {}
             if 'as' == event or 'a' == event:
-                await self.on_entry_update(self.asks, message)
+                self.on_entry_update(self.asks, message)
+            if 'bs' == event:
+                self.bids = {}
             if 'bs' == event or 'b' == event:
-                    await self.on_entry_update(self.bids, message)
+                self.on_entry_update(self.bids, message)
+            if 'c' == event:
+                crc_32 = int(message)
+                
 
-    async def on_price_update(self):
-
-            NBEST=3
-            
-            print('\t\tbest asks')
-            best_offers = reversed(sorted(self.asks.items(), key=lambda level: float(level[0]))[:NBEST])
-            best_offers = [k[1] for k in best_offers]
-            for level in best_offers:
-                print ('\t\t%s' % str(level))                                
-                    
-            best_bids = sorted(self.bids.items(), reverse=True, key=lambda level: float(level[0]))[:NBEST]
-            best_bids = [k[1] for k in best_bids]
-            for level in best_bids:
-                print (level)
-                    
-            print('best bids')
-
-            best_offers = [[k[0], k[1]] for k in best_offers]
-            best_bids = [[k[0], k[1]] for k in best_bids]
-
-            best_bid = best_bids[0]
-            best_offer = best_offers[NBEST-1]
-
-            print('bb=%s, bo=%s' % (best_bid, best_offer))
-
-            if float(best_bid[0]) >= float(best_offer[0]):
-                print('CROSSING!  This can not be correct!')
+        if crc_32 != 0:
+            book_crc = self.book_checksum()
+            if crc_32 != book_crc:
                 self.is_running = False
+                print('Payload = %s' % payload)
+                print('Checksum failure %d, expected %d' % (book_crc, crc_32))
 
-            self.pricelistener.on_price_update(best_bids, best_offers)
+        if self.is_running:
+            self.on_price_update()
+            
 
-            if self.pricelistener.get_theo() > float(best_offer[0]):
-                print('Theo is a SELLER, quantity = %0.2f' % float(best_offer[1]))
-            else:
-                if self.pricelistener.get_theo() < float(best_bid[0]):
-                    print('Theo is a BUYER, quantity = %0.2f' % float(best_bid[1]))
 
-            print('')
-            print('')
-            print('')
+
+    def on_price_update(self):
+
+        print('\t\tbest asks')
+        best_offers = sorted(self.asks.items(), reverse=True, key=lambda level: float(level[0]))
+        best_offers = [k[1] for k in best_offers[:5]]
+        for level in best_offers:
+            print ('\t\t%s' % str(level))                                
+
+        best_bids = sorted(self.bids.items(), reverse=True, key=lambda level: float(level[0]))
+        best_bids = [k[1] for k in best_bids[:5]]
+        for level in best_bids:
+            print (level)
+
+        print('best bids')
+
+        best_offers = [[k[0], k[1]] for k in best_offers]
+        best_bids = [[k[0], k[1]] for k in best_bids]
+
+        best_bid = best_bids[0]
+        best_offer = best_offers[-1]
+
+        print('bb=%s, bo=%s' % (best_bid, best_offer))
+
+        if float(best_bid[0]) >= float(best_offer[0]):
+            print('CROSSING!  This can not be correct!')
+            self.is_running = False
+
+        self.pricelistener.on_price_update(best_bids, best_offers)
+
+        if self.pricelistener.get_theo() > float(best_offer[0]):
+            print('Theo is a SELLER, quantity = %0.2f' % float(best_offer[1]))
+        else:
+            if self.pricelistener.get_theo() < float(best_bid[0]):
+                print('Theo is a BUYER, quantity = %0.2f' % float(best_bid[1]))
+
+        print('')
+        print('')
+        print('')
+
+
+    def prune_levels(self):
+        if len(self.asks) > self.DEPTH+1:
+            worst_asks = sorted(self.asks, reverse=False, key=lambda level: float(level))
+            worst_asks = worst_asks[self.DEPTH:]
+            for a in worst_asks:
+                del self.asks[a]
+
+        if len(self.bids) > self.DEPTH+1:
+            worst_bids = sorted(self.bids, reverse=True, key=lambda level: float(level))
+            worst_bids = worst_bids[self.DEPTH:]
+            for b in worst_bids:
+                del self.bids[b]
 
                     
     async def on_message(self, websocket, message):
@@ -107,11 +177,9 @@ class KrakenWss:
         event_message = json.loads(message)
         
         if type(event_message) == list:
-
-            (id, payload, name, pair) = event_message
-            await self.on_book_update(payload)
-            
-            await self.on_price_update()
+            for payload in event_message:
+                if type(payload) == dict:
+                    self.on_book_update(payload)
 
         else:
 
@@ -137,7 +205,8 @@ class KrakenWss:
         }
         self.requestId = self.requestId + 1
         subscription = {
-            'name':name
+            'name':name,
+            'depth':self.DEPTH
         }
         event['subscription'] = subscription
         await self.send_json(websocket, event)
@@ -187,11 +256,12 @@ class KrakenWss:
 if __name__ == '__main__':
 
     try:
-        kwss = KrakenWss()
+        kwss = KrakenBookWss()
         asioloop = asyncio.get_event_loop()
         asioloop.run_until_complete(kwss.run_event_loop())
     except Exception as e:
         print('Error: %s' % repr(e))
+        sys.exit(1)
     finally:
         asioloop.close()
         sys.exit(0)
