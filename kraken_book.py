@@ -8,6 +8,7 @@ import ssl
 import certifi
 import math
 from kraken_token import KrakenToken
+from pricelistener import PriceListener
 
 class KrakenWss:
 
@@ -23,6 +24,7 @@ class KrakenWss:
         self.requestId = 1
         self.bids = {}
         self.asks = {}
+        self.pricelistener = PriceListener()
 
     async def send_json(self, websocket, event):
         event_payload = json.dumps(event)
@@ -55,12 +57,8 @@ class KrakenWss:
         for event, message in payload.items():
             if 'as' == event or 'a' == event:
                 await self.on_entry_update(self.asks, message)
-            else:
-                if 'bs' == event or 'b' == event:
+            if 'bs' == event or 'b' == event:
                     await self.on_entry_update(self.bids, message)
-
-
-        await self.on_price_update()
 
     async def on_price_update(self):
 
@@ -68,18 +66,36 @@ class KrakenWss:
             
             print('\t\tbest asks')
             best_offers = reversed(sorted(self.asks.items(), key=lambda level: float(level[0]))[:NBEST])
-            best_offers = [k for k in best_offers]
+            best_offers = [k[1] for k in best_offers]
             for level in best_offers:
                 print ('\t\t%s' % str(level))                                
                     
             best_bids = sorted(self.bids.items(), reverse=True, key=lambda level: float(level[0]))[:NBEST]
-            best_bids = [k for k in best_bids]
+            best_bids = [k[1] for k in best_bids]
             for level in best_bids:
                 print (level)
                     
             print('best bids')
 
-        
+            best_offers = [[k[0], k[1]] for k in best_offers]
+            best_bids = [[k[0], k[1]] for k in best_bids]
+
+            self.pricelistener.on_price_update(best_bids, best_offers)
+
+            best_bid = best_bids[0]
+            best_offer = best_offers[NBEST-1]
+
+            print('bb=%s, bo=%s' % (best_bid, best_offer))
+
+            if float(best_bid[0]) >= float(best_offer[0]):
+                print('CROSSING!  This can not be correct!')
+                self.is_running = False
+
+            print('')
+            print('')
+            print('')
+
+                    
     async def on_message(self, websocket, message):
         self.update_time = time.time()
         event_message = json.loads(message)
@@ -88,6 +104,8 @@ class KrakenWss:
 
             (id, payload, name, pair) = event_message
             await self.on_book_update(payload)
+            
+            await self.on_price_update()
 
         else:
 
