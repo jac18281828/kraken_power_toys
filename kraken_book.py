@@ -17,7 +17,7 @@ class KrakenBookWss:
     #WS_URL = 'ws://localhost:8777'
 
     PRODUCT_ID='XBT/USD'
-    DEPTH=10
+    DEPTH=100
 
     is_running = True
 
